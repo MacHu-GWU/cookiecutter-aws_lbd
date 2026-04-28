@@ -357,19 +357,7 @@ wheels = [
 ]
 
 [[package]]
-name = "cookiecutter-maker"
-version = "1.0.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pathspec" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/78/76/0d4065702f556756b7af3c504cb78e02775870d8c67365a4a91fcdc58046/cookiecutter_maker-1.0.2.tar.gz", hash = "sha256:9efad9ece4d3d3d82c604e6118629a00622bee087f71963f389e567f2ff5a181", size = 15595, upload-time = "2025-04-02T14:31:04.898Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/0d/78/c686fb93f6f96dd70bed8f4fa934831a5f149ad8bb8e82729ee718df5990/cookiecutter_maker-1.0.2-py3-none-any.whl", hash = "sha256:e05b7b18e08b580ed7c2243ffe35184545acb6f0a5e88a930fe8ef884058c108", size = 19094, upload-time = "2025-04-02T14:31:03.55Z" },
-]
-
-[[package]]
-name = "cookiecutter-pywf-open-source"
+name = "cookiecutter-aws-lbd"
 version = "0.1.4"
 source = { editable = "." }
 dependencies = [
@@ -428,6 +416,18 @@ requires-dist = [
     { name = "tomli", marker = "python_full_version < '3.11' and extra == 'mise'", specifier = ">=2.0.0,<3.0.0" },
 ]
 provides-extras = ["dev", "test", "doc", "mise"]
+
+[[package]]
+name = "cookiecutter-maker"
+version = "1.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pathspec" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/78/76/0d4065702f556756b7af3c504cb78e02775870d8c67365a4a91fcdc58046/cookiecutter_maker-1.0.2.tar.gz", hash = "sha256:9efad9ece4d3d3d82c604e6118629a00622bee087f71963f389e567f2ff5a181", size = 15595, upload-time = "2025-04-02T14:31:04.898Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0d/78/c686fb93f6f96dd70bed8f4fa934831a5f149ad8bb8e82729ee718df5990/cookiecutter_maker-1.0.2-py3-none-any.whl", hash = "sha256:e05b7b18e08b580ed7c2243ffe35184545acb6f0a5e88a930fe8ef884058c108", size = 19094, upload-time = "2025-04-02T14:31:03.55Z" },
+]
 
 [[package]]
 name = "coverage"
