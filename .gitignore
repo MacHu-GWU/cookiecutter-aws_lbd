@@ -1,5 +1,5 @@
 # User Settings
-cookiecutter_pywf_open_source.egg-info/
+cookiecutter_aws_lbd.egg-info/
 .claude/claude-code-message*
 tmp/
 your_package_name-project

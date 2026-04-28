@@ -8,7 +8,7 @@ import shutil
 import tomllib
 from pathlib import Path
 from cookiecutter_maker.api import Parameter, Maker
-from cookiecutter_pywf_open_source.paths import path_enum
+from cookiecutter_aws_lbd.paths import path_enum
 
 # Get the project root directory
 dir_tmp = path_enum.dir_tmp
@@ -30,7 +30,7 @@ class SeedValues:
 
     # --- identity ---
     package_name = "cookiecutter_aws_lbd_demo"
-    package_name_slug = "cookiecutter-pywf-open-source-demo"
+    package_name_slug = "cookiecutter-aws-lbd-demo"
     github_username = "MacHu-GWU"
 
     # --- license ---

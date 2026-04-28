@@ -4,11 +4,11 @@
 # Read: https://packaging.python.org/en/latest/guides/writing-pyproject-toml/
 # ==============================================================================
 [project]
-name = "cookiecutter_pywf_open_source"
+name = "cookiecutter_aws_lbd"
 # Increment version before each release - follow `semantic versioning <https://semver.org/>`_
 # Currently, poetry 2.1.X doesn't support dynamic versioning
 # (Read https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#version)
-# So this value has to be aligned with the one in ``cookiecutter_pywf_open_source/_version.py``
+# So this value has to be aligned with the one in ``cookiecutter_aws_lbd/_version.py``
 version = "0.1.4"
 description = ""
 # Read https://dev-exp-share.readthedocs.io/en/latest/search.html?q=Pick+An+Open+Source+License+For+Python+Project&check_keywords=yes&area=default
@@ -98,11 +98,11 @@ mise = [
 
 # Quick Links
 [project.urls]
-Homepage = "https://github.com/MacHu-GWU/cookiecutter_pywf_open_source-project"
+Homepage = "https://github.com/MacHu-GWU/cookiecutter_aws_lbd-project"
 Documentation = "https://cookiecutter-pywf-open-source.readthedocs.io/en/latest/"
-Repository = "https://github.com/MacHu-GWU/cookiecutter_pywf_open_source-project"
-Issues = "https://github.com/MacHu-GWU/cookiecutter_pywf_open_source-project/issues"
-Changelog = "https://github.com/MacHu-GWU/cookiecutter_pywf_open_source-project/blob/main/release-history.rst"
+Repository = "https://github.com/MacHu-GWU/cookiecutter_aws_lbd-project"
+Issues = "https://github.com/MacHu-GWU/cookiecutter_aws_lbd-project/issues"
+Changelog = "https://github.com/MacHu-GWU/cookiecutter_aws_lbd-project/blob/main/release-history.rst"
 Download = "https://pypi.org/pypi/cookiecutter-pywf-open-source#files"
 
 # For command line interface, read: https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#creating-executable-scripts
@@ -114,12 +114,12 @@ poetry-plugin-export = ">=1.9.0,<2.0.0"
 [tool.poetry]
 # Files to include in the package distribution
 packages = [
-    { include = "cookiecutter_pywf_open_source", from = ".", to = "." }
+    { include = "cookiecutter_aws_lbd", from = ".", to = "." }
 ]
 # Files to exclude from the package
 exclude = [
-    "cookiecutter_pywf_open_source/tests/*",
-    "cookiecutter_pywf_open_source/docs/*",
+    "cookiecutter_aws_lbd/tests/*",
+    "cookiecutter_aws_lbd/docs/*",
     "**/*.pyc",
     "**/*.pyo",
 ]
@@ -127,13 +127,13 @@ exclude = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = [
-    "cookiecutter_pywf_open_source*"
+    "cookiecutter_aws_lbd*"
 ]
 exclude = [
-    "cookiecutter_pywf_open_source.tests",
-    "cookiecutter_pywf_open_source.tests.*",
-    "cookiecutter_pywf_open_source.docs",
-    "cookiecutter_pywf_open_source.docs.*",
+    "cookiecutter_aws_lbd.tests",
+    "cookiecutter_aws_lbd.tests.*",
+    "cookiecutter_aws_lbd.docs",
+    "cookiecutter_aws_lbd.docs.*",
 ]
 
 [build-system]

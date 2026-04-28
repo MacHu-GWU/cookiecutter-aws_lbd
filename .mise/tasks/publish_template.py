@@ -26,7 +26,7 @@ from pathlib import Path
 
 from pygithub_mate.api import BaseGitHubRepo
 
-from cookiecutter_pywf_open_source.paths import path_enum
+from cookiecutter_aws_lbd.paths import path_enum
 from make_template import SeedValues
 
 
