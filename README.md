@@ -1,1 +1,0 @@
-# cookiecutter-aws_lbd_demo
