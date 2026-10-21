@@ -1,14 +1,10 @@
 # See claude code environment variables documents at https://code.claude.com/docs/en/settings
 [env]
-GITHUB_TOKEN = "{% raw %}{{{% endraw %} exec(command='uvx --from home-secret-toml hst get {{ cookiecutter.github_token_field }}') {% raw %}}}{% endraw %}"
-CODECOV_TOKEN = "{% raw %}{{{% endraw %} exec(command='uvx --from home-secret-toml hst get {{ cookiecutter.codecov_token_field }}') {% raw %}}}{% endraw %}"
-READTHEDOCS_TOKEN = "{% raw %}{{{% endraw %} exec(command='uvx --from home-secret-toml hst get {{ cookiecutter.readthedocs_token_field }}') {% raw %}}}{% endraw %}"
-PYPI_TOKEN = "{% raw %}{{{% endraw %} exec(command='uvx --from home-secret-toml hst get pypi.accounts.sh.token') {% raw %}}}{% endraw %}"
-
-_.file = [
-  ".env.shared",
-  ".env",
-]
+GITHUB_TOKEN = "{% raw %}{{{% endraw %} exec(command='uvx --from home-secret-toml hst get {{ cookiecutter.github_token_field }} || true') {% raw %}}}{% endraw %}"
+# Make uv use the mise Python below (first ``python`` on PATH), not a uv-managed one
+# or a global ``~/.config/uv/.python-version`` pin. ``[tools] python`` is the one dev version.
+UV_PYTHON = "python"
+_.file = ".env"
 
 [tools]
 python = "{{ cookiecutter.dev_python_version }}"
@@ -17,7 +13,7 @@ claude = "latest"
 pandoc = "3.9" # Use pandoc 3.9 - latest stable major version as of 2026-04
 node = "24"
 awscli = "2.34.24"
-"npm:aws-cdk" = "2.1119.0"
+"npm:aws-cdk" = "2.1145.0"
 
 # === Tasks ===
 # Python Environment Management
@@ -47,18 +43,34 @@ uv export --format requirements-txt --extra mise --no-emit-project --no-hashes -
 
 # Testing
 [tasks.test]
-description = "🧪 Run CDK integration tests using pytest (no coverage, avoids aws-cdk import overhead)"
-run = ".venv/bin/pytest tests/cdk -s --tb=native"
+description = "🧪 Run unit tests using pytest (scans test files automatically)"
+run = ".venv/bin/pytest tests"
 depends = ["inst"]
 
 [tasks.cov]
 description = "🧪📊 Run unit tests with code coverage using pytest (generates HTML report in htmlcov/)"
-run = ".venv/bin/pytest tests --ignore=tests/cdk -s --tb=native --cov={{ cookiecutter.package_name }} --cov-report term-missing --cov-report html:htmlcov"
+run = ".venv/bin/pytest tests -s --tb=native --cov={{ cookiecutter.package_name }} --cov-report term-missing --cov-report html:htmlcov"
+depends = ["inst"]
+
+[tasks.int-test]
+description = "🧪☁️ Run integration tests against what is deployed in ENV_NAME (default dev), e.g. ENV_NAME=prd mise run int-test (writes to AWS: invokes the functions, writes test data)"
+run = ".venv/bin/pytest tests_int -s --tb=native"
 depends = ["inst"]
 
 [tasks.view-cov]
 description = "👀📊 Open code coverage HTML report in browser (requires 'cov' task to run first)"
 run = "open htmlcov/index.html"
+
+[tasks.format]
+description = "🎨 Format all Python code with ruff (package, tests, CDK app, mise task scripts)"
+run = "uvx ruff format {{ cookiecutter.package_name }} tests tests_int cdk/cdk_app.py .mise/tasks"
+
+[tasks.lint]
+description = "🔍 Lint Python code with ruff (unused/undefined names) and check one imported name per statement"
+run = """
+uvx ruff check --select F401,F821,F841 {{ cookiecutter.package_name }} tests tests_int cdk/cdk_app.py .mise/tasks
+python3 .claude/skills/pywf-oss-base/scripts/check_one_import_per_line.py --paths {{ cookiecutter.package_name }} tests tests_int cdk/cdk_app.py .mise/tasks
+"""
 
 # Documentation
 [tasks.build-doc]
@@ -86,78 +98,632 @@ rm -rf dist
 uv build
 """
 
-[tasks.publish]
-description = "🚀 Publish Python package to PyPI using uv (prints PyPI URL after success)"
-run = """
-.venv/bin/python .mise/tasks/publish.py
-uv publish --token $PYPI_TOKEN
-"""
-depends = ["build"]
-
 [tasks.release]
 description = "🏷 Create GitHub release using PyGithub (idempotent: skips if release exists)"
 run = ".venv/bin/python .mise/tasks/release.py"
 depends = ["inst"]
 
-# CI/CD Setup
-[tasks.setup-codecov]
-description = "⚙️ Setup Codecov upload token on GitHub Actions secrets using PyGithub and httpx"
-run = ".venv/bin/python .mise/tasks/setup-codecov.py"
-depends = ["inst"]
-
-[tasks.setup-readthedocs]
-description = "⚙️ Setup ReadTheDocs project and GitHub webhook using httpx API client"
-run = ".venv/bin/python .mise/tasks/setup-readthedocs.py"
-depends = ["inst"]
-
+# GitHub Setup
 [tasks.update-github-metadata]
 description = "🔧 Update GitHub repository description and homepage using PyGithub"
 run = ".venv/bin/python .mise/tasks/update-github-metadata.py"
 depends = ["inst"]
 
-# CDK
-[tasks.cdk-plan]
-description = "🔵 Preview CDK changes then deploy (runs cdk diff followed by cdk deploy)"
-dir = "cdk"
-depends = ["inst"]
-run = """
-cdk diff --all
-cdk deploy --all --require-approval never
-"""
-
-[tasks.cdk-up]
-description = "🟢 Deploy CDK stacks to AWS (runs cdk deploy, skip approval)"
-dir = "cdk"
-depends = ["inst", "lambda-source-deploy"]
-run = "cdk deploy --all --require-approval never --profile $LOCAL_AWS_PROFILE"
-
-[tasks.cdk-down]
-description = "🔴 Destroy CDK stacks from AWS (force, no confirmation)"
-dir = "cdk"
-run = "cdk destroy --all --force --profile $LOCAL_AWS_PROFILE"
-
-[tasks.cdk-down-ask]
-description = "🟡 Destroy CDK stacks from AWS (with confirmation prompt)"
-dir = "cdk"
-run = "cdk destroy --all --profile $LOCAL_AWS_PROFILE"
-
 # Lambda DevOps
 [tasks.lambda-layer-build-only]
-description = "🐳 Build Lambda layer in Docker container (local only — no zip/upload/publish)"
-run = ".venv/bin/python .mise/tasks/lambda_layer_1_build_only.py"
+description = "🏗️ Build the Lambda layer locally (no zip/upload/publish)"
+run = ".venv/bin/python .mise/tasks/lambda-layer-build-only.py"
 depends = ["inst"]
 
 [tasks.lambda-layer-deploy]
-description = "🚀 Full Lambda layer pipeline: Build → Zip → Upload S3 → Publish AWS Lambda"
-run = ".venv/bin/python .mise/tasks/lambda_layer_1_build_lambda_layer_in_container.py"
+description = "🚀 Lambda layer: Build → Zip → Upload → Publish in the DEVOPS account → Grant every environment (writes to AWS; skips publish if uv.lock is unchanged; then pin the printed version in config-<env>.json5)"
+run = ".venv/bin/python .mise/tasks/lambda-layer-deploy.py"
 depends = ["inst"]
 
 [tasks.lambda-layer-cleanup]
-description = "🧹 Clean up old Lambda layer versions (keeps latest 1)"
-run = ".venv/bin/python .mise/tasks/lambda_layer_2_cleanup_old_layer_versions.py"
+description = "🧹 List old Lambda layer versions to delete (dry run; keeps latest 3 and those in use)"
+run = ".venv/bin/python .mise/tasks/lambda-layer-cleanup.py"
 depends = ["inst"]
 
-[tasks.lambda-source-deploy]
-description = "📦 Build Lambda source zip using uv and upload to S3"
-run = ".venv/bin/python .mise/tasks/lambda_layer_3_build_lambda_source.py"
+[tasks.lambda-layer-cleanup-real-run]
+description = "🧹🔴 Delete old Lambda layer versions (writes to AWS; keeps latest 3 and those in use)"
+run = ".venv/bin/python .mise/tasks/lambda-layer-cleanup.py --real-run"
 depends = ["inst"]
+
+[tasks.lambda-source-build]
+description = "📦 Copy the package source files to build/lambda/source/build/ (deployed by the lbd stack with Code.from_asset)"
+run = ".venv/bin/python .mise/tasks/lambda-source-build.py"
+depends = ["inst"]
+
+# CDK
+[tasks.cdk-gen-tasks]
+description = "🧩 Regenerate the config-<deploy|delete>-<env|all>, lambda-layer-check-<env>, cdk-gc-<env>, cdk-<action>-<env>-<stack>-stack / -all tasks below from StackCtxEnum and EnvNameEnum (rewrites the <cdk-stack-tasks> block)"
+run = ".venv/bin/python .mise/tasks/cdk-gen-tasks.py"
+depends = ["inst"]
+
+[tasks.gen-quick-links]
+description = "🔗 Regenerate QUICK_LINKS.md, the console URL of every AWS resource in every environment, from config/ (no AWS call; run after changing the config)"
+run = ".venv/bin/python .mise/tasks/gen-quick-links.py"
+depends = ["inst"]
+
+[tasks.print-cdk-stack-urls]
+description = "🔗 Print the CloudFormation console URL of every stack in every environment (no AWS call; a failing environment prints an error, the rest still print)"
+run = ".venv/bin/python .mise/tasks/print-cdk-stack-urls.py"
+depends = ["inst"]
+
+# <cdk-stack-tasks>
+# Generated by `mise run cdk-gen-tasks` from StackCtxEnum. Do not edit by hand.
+
+[tasks."config-deploy-dev"]
+description = "⚙️ Deploy the config of dev to SSM Parameter Store, if it changed (writes to AWS)"
+env = { ENV_NAME = "dev" }
+depends = ["inst"]
+run = ".venv/bin/python .mise/tasks/config-deploy.py"
+
+[tasks."config-delete-dev"]
+description = "🗑️ Delete the config of dev from SSM Parameter Store (writes to AWS)"
+env = { ENV_NAME = "dev" }
+depends = ["inst"]
+run = ".venv/bin/python .mise/tasks/config-delete.py"
+
+[tasks."lambda-layer-check-dev"]
+description = "🔎 Check that dev can use the Lambda layer version of its config"
+env = { ENV_NAME = "dev" }
+depends = ["inst"]
+run = ".venv/bin/python .mise/tasks/lambda-layer-check.py"
+
+[tasks."cdk-gc-dev"]
+description = "🧹 List unused CDK assets in the bootstrap bucket of dev (print only)"
+dir = "cdk"
+env = { ENV_NAME = "dev" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo 'cdk gc --unstable=gc --action=print --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_DEV{% raw %}}}{% endraw %}'
+cdk gc --unstable=gc --action=print --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_DEV{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-synth-dev-all"]
+description = "⚪ Synthesize all stacks of dev to CloudFormation templates (no AWS call)"
+dir = "cdk"
+env = { ENV_NAME = "dev" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-dev-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-dev-infra&filteringStatus=active&viewNested=true'
+echo '{{ cookiecutter.package_name | slugify }}-dev-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-dev-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk synth'
+cdk synth
+"""
+
+[tasks."cdk-plan-dev-all"]
+description = "🔵 Plan all stacks of dev: diff against what is deployed, through a CloudFormation change set (no deploy)"
+dir = "cdk"
+env = { ENV_NAME = "dev" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-dev-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-dev-infra&filteringStatus=active&viewNested=true'
+echo '{{ cookiecutter.package_name | slugify }}-dev-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-dev-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk diff --all --method auto --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_DEV{% raw %}}}{% endraw %}'
+cdk diff --all --method auto --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_DEV{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-up-dev-all"]
+description = "🟢 Deploy all stacks of dev, after building the source, checking the layer, and deploying the config (writes to AWS, no approval prompt)"
+dir = "cdk"
+env = { ENV_NAME = "dev" }
+depends = ["inst", "lambda-source-build", "lambda-layer-check-dev", "config-deploy-dev"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-dev-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-dev-infra&filteringStatus=active&viewNested=true'
+echo '{{ cookiecutter.package_name | slugify }}-dev-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-dev-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk deploy --all --require-approval never --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_DEV{% raw %}}}{% endraw %}'
+cdk deploy --all --require-approval never --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_DEV{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-down-dev-all"]
+description = "🔴 Destroy all stacks of dev (writes to AWS, force, no confirmation)"
+dir = "cdk"
+env = { ENV_NAME = "dev" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-dev-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-dev-infra&filteringStatus=active&viewNested=true'
+echo '{{ cookiecutter.package_name | slugify }}-dev-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-dev-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk destroy --all --force --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_DEV{% raw %}}}{% endraw %}'
+cdk destroy --all --force --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_DEV{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-synth-dev-infra-stack"]
+description = "⚪ Synthesize stack infra of dev to CloudFormation templates (no AWS call)"
+dir = "cdk"
+env = { ENV_NAME = "dev" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-dev-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-dev-infra&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk synth {{ cookiecutter.package_name | slugify }}-dev-infra --exclusively'
+cdk synth {{ cookiecutter.package_name | slugify }}-dev-infra --exclusively
+"""
+
+[tasks."cdk-plan-dev-infra-stack"]
+description = "🔵 Plan stack infra of dev: diff against what is deployed, through a CloudFormation change set (no deploy)"
+dir = "cdk"
+env = { ENV_NAME = "dev" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-dev-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-dev-infra&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk diff {{ cookiecutter.package_name | slugify }}-dev-infra --exclusively --method auto --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_DEV{% raw %}}}{% endraw %}'
+cdk diff {{ cookiecutter.package_name | slugify }}-dev-infra --exclusively --method auto --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_DEV{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-up-dev-infra-stack"]
+description = "🟢 Deploy stack infra of dev, after building the source, checking the layer, and deploying the config (writes to AWS, no approval prompt)"
+dir = "cdk"
+env = { ENV_NAME = "dev" }
+depends = ["inst", "lambda-source-build", "lambda-layer-check-dev", "config-deploy-dev"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-dev-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-dev-infra&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk deploy {{ cookiecutter.package_name | slugify }}-dev-infra --exclusively --require-approval never --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_DEV{% raw %}}}{% endraw %}'
+cdk deploy {{ cookiecutter.package_name | slugify }}-dev-infra --exclusively --require-approval never --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_DEV{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-down-dev-infra-stack"]
+description = "🔴 Destroy stack infra of dev (writes to AWS, force, no confirmation)"
+dir = "cdk"
+env = { ENV_NAME = "dev" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-dev-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-dev-infra&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk destroy {{ cookiecutter.package_name | slugify }}-dev-infra --exclusively --force --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_DEV{% raw %}}}{% endraw %}'
+cdk destroy {{ cookiecutter.package_name | slugify }}-dev-infra --exclusively --force --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_DEV{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-synth-dev-lbd-stack"]
+description = "⚪ Synthesize stack lbd of dev to CloudFormation templates (no AWS call)"
+dir = "cdk"
+env = { ENV_NAME = "dev" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-dev-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-dev-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk synth {{ cookiecutter.package_name | slugify }}-dev-lbd --exclusively'
+cdk synth {{ cookiecutter.package_name | slugify }}-dev-lbd --exclusively
+"""
+
+[tasks."cdk-plan-dev-lbd-stack"]
+description = "🔵 Plan stack lbd of dev: diff against what is deployed, through a CloudFormation change set (no deploy)"
+dir = "cdk"
+env = { ENV_NAME = "dev" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-dev-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-dev-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk diff {{ cookiecutter.package_name | slugify }}-dev-lbd --exclusively --method auto --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_DEV{% raw %}}}{% endraw %}'
+cdk diff {{ cookiecutter.package_name | slugify }}-dev-lbd --exclusively --method auto --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_DEV{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-up-dev-lbd-stack"]
+description = "🟢 Deploy stack lbd of dev, after building the source, checking the layer, and deploying the config (writes to AWS, no approval prompt)"
+dir = "cdk"
+env = { ENV_NAME = "dev" }
+depends = ["inst", "lambda-source-build", "lambda-layer-check-dev", "config-deploy-dev"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-dev-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-dev-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk deploy {{ cookiecutter.package_name | slugify }}-dev-lbd --exclusively --require-approval never --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_DEV{% raw %}}}{% endraw %}'
+cdk deploy {{ cookiecutter.package_name | slugify }}-dev-lbd --exclusively --require-approval never --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_DEV{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-down-dev-lbd-stack"]
+description = "🔴 Destroy stack lbd of dev (writes to AWS, force, no confirmation)"
+dir = "cdk"
+env = { ENV_NAME = "dev" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-dev-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-dev-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk destroy {{ cookiecutter.package_name | slugify }}-dev-lbd --exclusively --force --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_DEV{% raw %}}}{% endraw %}'
+cdk destroy {{ cookiecutter.package_name | slugify }}-dev-lbd --exclusively --force --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_DEV{% raw %}}}{% endraw %}
+"""
+
+[tasks."config-deploy-tst"]
+description = "⚙️ Deploy the config of tst to SSM Parameter Store, if it changed (writes to AWS)"
+env = { ENV_NAME = "tst" }
+depends = ["inst"]
+run = ".venv/bin/python .mise/tasks/config-deploy.py"
+
+[tasks."config-delete-tst"]
+description = "🗑️ Delete the config of tst from SSM Parameter Store (writes to AWS)"
+env = { ENV_NAME = "tst" }
+depends = ["inst"]
+run = ".venv/bin/python .mise/tasks/config-delete.py"
+
+[tasks."lambda-layer-check-tst"]
+description = "🔎 Check that tst can use the Lambda layer version of its config"
+env = { ENV_NAME = "tst" }
+depends = ["inst"]
+run = ".venv/bin/python .mise/tasks/lambda-layer-check.py"
+
+[tasks."cdk-gc-tst"]
+description = "🧹 List unused CDK assets in the bootstrap bucket of tst (print only)"
+dir = "cdk"
+env = { ENV_NAME = "tst" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo 'cdk gc --unstable=gc --action=print --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_TST{% raw %}}}{% endraw %}'
+cdk gc --unstable=gc --action=print --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_TST{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-synth-tst-all"]
+description = "⚪ Synthesize all stacks of tst to CloudFormation templates (no AWS call)"
+dir = "cdk"
+env = { ENV_NAME = "tst" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-tst-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-tst-infra&filteringStatus=active&viewNested=true'
+echo '{{ cookiecutter.package_name | slugify }}-tst-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-tst-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk synth'
+cdk synth
+"""
+
+[tasks."cdk-plan-tst-all"]
+description = "🔵 Plan all stacks of tst: diff against what is deployed, through a CloudFormation change set (no deploy)"
+dir = "cdk"
+env = { ENV_NAME = "tst" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-tst-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-tst-infra&filteringStatus=active&viewNested=true'
+echo '{{ cookiecutter.package_name | slugify }}-tst-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-tst-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk diff --all --method auto --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_TST{% raw %}}}{% endraw %}'
+cdk diff --all --method auto --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_TST{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-up-tst-all"]
+description = "🟢 Deploy all stacks of tst, after building the source, checking the layer, and deploying the config (writes to AWS, no approval prompt)"
+dir = "cdk"
+env = { ENV_NAME = "tst" }
+depends = ["inst", "lambda-source-build", "lambda-layer-check-tst", "config-deploy-tst"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-tst-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-tst-infra&filteringStatus=active&viewNested=true'
+echo '{{ cookiecutter.package_name | slugify }}-tst-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-tst-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk deploy --all --require-approval never --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_TST{% raw %}}}{% endraw %}'
+cdk deploy --all --require-approval never --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_TST{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-down-tst-all"]
+description = "🔴 Destroy all stacks of tst (writes to AWS, force, no confirmation)"
+dir = "cdk"
+env = { ENV_NAME = "tst" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-tst-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-tst-infra&filteringStatus=active&viewNested=true'
+echo '{{ cookiecutter.package_name | slugify }}-tst-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-tst-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk destroy --all --force --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_TST{% raw %}}}{% endraw %}'
+cdk destroy --all --force --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_TST{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-synth-tst-infra-stack"]
+description = "⚪ Synthesize stack infra of tst to CloudFormation templates (no AWS call)"
+dir = "cdk"
+env = { ENV_NAME = "tst" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-tst-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-tst-infra&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk synth {{ cookiecutter.package_name | slugify }}-tst-infra --exclusively'
+cdk synth {{ cookiecutter.package_name | slugify }}-tst-infra --exclusively
+"""
+
+[tasks."cdk-plan-tst-infra-stack"]
+description = "🔵 Plan stack infra of tst: diff against what is deployed, through a CloudFormation change set (no deploy)"
+dir = "cdk"
+env = { ENV_NAME = "tst" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-tst-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-tst-infra&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk diff {{ cookiecutter.package_name | slugify }}-tst-infra --exclusively --method auto --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_TST{% raw %}}}{% endraw %}'
+cdk diff {{ cookiecutter.package_name | slugify }}-tst-infra --exclusively --method auto --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_TST{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-up-tst-infra-stack"]
+description = "🟢 Deploy stack infra of tst, after building the source, checking the layer, and deploying the config (writes to AWS, no approval prompt)"
+dir = "cdk"
+env = { ENV_NAME = "tst" }
+depends = ["inst", "lambda-source-build", "lambda-layer-check-tst", "config-deploy-tst"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-tst-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-tst-infra&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk deploy {{ cookiecutter.package_name | slugify }}-tst-infra --exclusively --require-approval never --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_TST{% raw %}}}{% endraw %}'
+cdk deploy {{ cookiecutter.package_name | slugify }}-tst-infra --exclusively --require-approval never --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_TST{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-down-tst-infra-stack"]
+description = "🔴 Destroy stack infra of tst (writes to AWS, force, no confirmation)"
+dir = "cdk"
+env = { ENV_NAME = "tst" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-tst-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-tst-infra&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk destroy {{ cookiecutter.package_name | slugify }}-tst-infra --exclusively --force --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_TST{% raw %}}}{% endraw %}'
+cdk destroy {{ cookiecutter.package_name | slugify }}-tst-infra --exclusively --force --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_TST{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-synth-tst-lbd-stack"]
+description = "⚪ Synthesize stack lbd of tst to CloudFormation templates (no AWS call)"
+dir = "cdk"
+env = { ENV_NAME = "tst" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-tst-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-tst-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk synth {{ cookiecutter.package_name | slugify }}-tst-lbd --exclusively'
+cdk synth {{ cookiecutter.package_name | slugify }}-tst-lbd --exclusively
+"""
+
+[tasks."cdk-plan-tst-lbd-stack"]
+description = "🔵 Plan stack lbd of tst: diff against what is deployed, through a CloudFormation change set (no deploy)"
+dir = "cdk"
+env = { ENV_NAME = "tst" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-tst-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-tst-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk diff {{ cookiecutter.package_name | slugify }}-tst-lbd --exclusively --method auto --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_TST{% raw %}}}{% endraw %}'
+cdk diff {{ cookiecutter.package_name | slugify }}-tst-lbd --exclusively --method auto --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_TST{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-up-tst-lbd-stack"]
+description = "🟢 Deploy stack lbd of tst, after building the source, checking the layer, and deploying the config (writes to AWS, no approval prompt)"
+dir = "cdk"
+env = { ENV_NAME = "tst" }
+depends = ["inst", "lambda-source-build", "lambda-layer-check-tst", "config-deploy-tst"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-tst-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-tst-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk deploy {{ cookiecutter.package_name | slugify }}-tst-lbd --exclusively --require-approval never --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_TST{% raw %}}}{% endraw %}'
+cdk deploy {{ cookiecutter.package_name | slugify }}-tst-lbd --exclusively --require-approval never --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_TST{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-down-tst-lbd-stack"]
+description = "🔴 Destroy stack lbd of tst (writes to AWS, force, no confirmation)"
+dir = "cdk"
+env = { ENV_NAME = "tst" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-tst-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-tst-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk destroy {{ cookiecutter.package_name | slugify }}-tst-lbd --exclusively --force --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_TST{% raw %}}}{% endraw %}'
+cdk destroy {{ cookiecutter.package_name | slugify }}-tst-lbd --exclusively --force --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_TST{% raw %}}}{% endraw %}
+"""
+
+[tasks."config-deploy-prd"]
+description = "⚙️ Deploy the config of prd to SSM Parameter Store, if it changed (writes to AWS)"
+env = { ENV_NAME = "prd" }
+depends = ["inst"]
+run = ".venv/bin/python .mise/tasks/config-deploy.py"
+
+[tasks."config-delete-prd"]
+description = "🗑️ Delete the config of prd from SSM Parameter Store (writes to AWS)"
+env = { ENV_NAME = "prd" }
+depends = ["inst"]
+run = ".venv/bin/python .mise/tasks/config-delete.py"
+
+[tasks."lambda-layer-check-prd"]
+description = "🔎 Check that prd can use the Lambda layer version of its config"
+env = { ENV_NAME = "prd" }
+depends = ["inst"]
+run = ".venv/bin/python .mise/tasks/lambda-layer-check.py"
+
+[tasks."cdk-gc-prd"]
+description = "🧹 List unused CDK assets in the bootstrap bucket of prd (print only)"
+dir = "cdk"
+env = { ENV_NAME = "prd" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo 'cdk gc --unstable=gc --action=print --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_PRD{% raw %}}}{% endraw %}'
+cdk gc --unstable=gc --action=print --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_PRD{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-synth-prd-all"]
+description = "⚪ Synthesize all stacks of prd to CloudFormation templates (no AWS call)"
+dir = "cdk"
+env = { ENV_NAME = "prd" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-prd-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-prd-infra&filteringStatus=active&viewNested=true'
+echo '{{ cookiecutter.package_name | slugify }}-prd-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-prd-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk synth'
+cdk synth
+"""
+
+[tasks."cdk-plan-prd-all"]
+description = "🔵 Plan all stacks of prd: diff against what is deployed, through a CloudFormation change set (no deploy)"
+dir = "cdk"
+env = { ENV_NAME = "prd" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-prd-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-prd-infra&filteringStatus=active&viewNested=true'
+echo '{{ cookiecutter.package_name | slugify }}-prd-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-prd-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk diff --all --method auto --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_PRD{% raw %}}}{% endraw %}'
+cdk diff --all --method auto --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_PRD{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-up-prd-all"]
+description = "🟢 Deploy all stacks of prd, after building the source, checking the layer, and deploying the config (writes to AWS, no approval prompt)"
+dir = "cdk"
+env = { ENV_NAME = "prd" }
+depends = ["inst", "lambda-source-build", "lambda-layer-check-prd", "config-deploy-prd"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-prd-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-prd-infra&filteringStatus=active&viewNested=true'
+echo '{{ cookiecutter.package_name | slugify }}-prd-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-prd-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk deploy --all --require-approval never --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_PRD{% raw %}}}{% endraw %}'
+cdk deploy --all --require-approval never --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_PRD{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-down-prd-all"]
+description = "🔴 Destroy all stacks of prd (writes to AWS, force, no confirmation)"
+dir = "cdk"
+env = { ENV_NAME = "prd" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-prd-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-prd-infra&filteringStatus=active&viewNested=true'
+echo '{{ cookiecutter.package_name | slugify }}-prd-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-prd-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk destroy --all --force --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_PRD{% raw %}}}{% endraw %}'
+cdk destroy --all --force --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_PRD{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-synth-prd-infra-stack"]
+description = "⚪ Synthesize stack infra of prd to CloudFormation templates (no AWS call)"
+dir = "cdk"
+env = { ENV_NAME = "prd" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-prd-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-prd-infra&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk synth {{ cookiecutter.package_name | slugify }}-prd-infra --exclusively'
+cdk synth {{ cookiecutter.package_name | slugify }}-prd-infra --exclusively
+"""
+
+[tasks."cdk-plan-prd-infra-stack"]
+description = "🔵 Plan stack infra of prd: diff against what is deployed, through a CloudFormation change set (no deploy)"
+dir = "cdk"
+env = { ENV_NAME = "prd" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-prd-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-prd-infra&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk diff {{ cookiecutter.package_name | slugify }}-prd-infra --exclusively --method auto --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_PRD{% raw %}}}{% endraw %}'
+cdk diff {{ cookiecutter.package_name | slugify }}-prd-infra --exclusively --method auto --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_PRD{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-up-prd-infra-stack"]
+description = "🟢 Deploy stack infra of prd, after building the source, checking the layer, and deploying the config (writes to AWS, no approval prompt)"
+dir = "cdk"
+env = { ENV_NAME = "prd" }
+depends = ["inst", "lambda-source-build", "lambda-layer-check-prd", "config-deploy-prd"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-prd-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-prd-infra&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk deploy {{ cookiecutter.package_name | slugify }}-prd-infra --exclusively --require-approval never --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_PRD{% raw %}}}{% endraw %}'
+cdk deploy {{ cookiecutter.package_name | slugify }}-prd-infra --exclusively --require-approval never --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_PRD{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-down-prd-infra-stack"]
+description = "🔴 Destroy stack infra of prd (writes to AWS, force, no confirmation)"
+dir = "cdk"
+env = { ENV_NAME = "prd" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-prd-infra: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-prd-infra&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk destroy {{ cookiecutter.package_name | slugify }}-prd-infra --exclusively --force --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_PRD{% raw %}}}{% endraw %}'
+cdk destroy {{ cookiecutter.package_name | slugify }}-prd-infra --exclusively --force --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_PRD{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-synth-prd-lbd-stack"]
+description = "⚪ Synthesize stack lbd of prd to CloudFormation templates (no AWS call)"
+dir = "cdk"
+env = { ENV_NAME = "prd" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-prd-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-prd-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk synth {{ cookiecutter.package_name | slugify }}-prd-lbd --exclusively'
+cdk synth {{ cookiecutter.package_name | slugify }}-prd-lbd --exclusively
+"""
+
+[tasks."cdk-plan-prd-lbd-stack"]
+description = "🔵 Plan stack lbd of prd: diff against what is deployed, through a CloudFormation change set (no deploy)"
+dir = "cdk"
+env = { ENV_NAME = "prd" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-prd-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-prd-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk diff {{ cookiecutter.package_name | slugify }}-prd-lbd --exclusively --method auto --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_PRD{% raw %}}}{% endraw %}'
+cdk diff {{ cookiecutter.package_name | slugify }}-prd-lbd --exclusively --method auto --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_PRD{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-up-prd-lbd-stack"]
+description = "🟢 Deploy stack lbd of prd, after building the source, checking the layer, and deploying the config (writes to AWS, no approval prompt)"
+dir = "cdk"
+env = { ENV_NAME = "prd" }
+depends = ["inst", "lambda-source-build", "lambda-layer-check-prd", "config-deploy-prd"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-prd-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-prd-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk deploy {{ cookiecutter.package_name | slugify }}-prd-lbd --exclusively --require-approval never --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_PRD{% raw %}}}{% endraw %}'
+cdk deploy {{ cookiecutter.package_name | slugify }}-prd-lbd --exclusively --require-approval never --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_PRD{% raw %}}}{% endraw %}
+"""
+
+[tasks."cdk-down-prd-lbd-stack"]
+description = "🔴 Destroy stack lbd of prd (writes to AWS, force, no confirmation)"
+dir = "cdk"
+env = { ENV_NAME = "prd" }
+depends = ["inst", "lambda-source-build"]
+run = """
+echo '--- CloudFormation console ---'
+echo '{{ cookiecutter.package_name | slugify }}-prd-lbd: https://{{ cookiecutter.aws_region }}.console.aws.amazon.com/cloudformation/home?region={{ cookiecutter.aws_region }}#/stacks/stackinfo?filteringText={{ cookiecutter.package_name | slugify }}-prd-lbd&filteringStatus=active&viewNested=true'
+echo '--- Run command ---'
+echo 'cdk destroy {{ cookiecutter.package_name | slugify }}-prd-lbd --exclusively --force --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_PRD{% raw %}}}{% endraw %}'
+cdk destroy {{ cookiecutter.package_name | slugify }}-prd-lbd --exclusively --force --profile {% raw %}{{{% endraw %}env.AWS_PROFILE_FOR_PRD{% raw %}}}{% endraw %}
+"""
+
+[tasks."config-deploy-all"]
+description = "⚙️ Run config-deploy-<env> for every environment (writes to AWS)"
+depends = ["config-deploy-dev", "config-deploy-tst", "config-deploy-prd"]
+
+[tasks."config-delete-all"]
+description = "⚙️ Run config-delete-<env> for every environment (writes to AWS)"
+depends = ["config-delete-dev", "config-delete-tst", "config-delete-prd"]
+
+# </cdk-stack-tasks>

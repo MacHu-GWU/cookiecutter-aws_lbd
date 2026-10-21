@@ -4,8 +4,11 @@ Release v\ |release| (:ref:`What's new? <release_history>`).
 
 Table of Content
 ------------------------------------------------------------------------------
-.. autotoctree::
+.. toctree::
     :maxdepth: 1
+
+    Release History <release-history>
+    API Reference <api/{{ cookiecutter.package_name }}/__init__>
 
 .. include:: ../../AUTHORS.rst
 

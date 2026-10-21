@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Public API for the ``one`` subpackage.
-
-Import the ``One`` class and its singleton instance ``one`` from here::
+Public API of the ``one`` subpackage::
 
     from {{ cookiecutter.package_name }}.one.api import one
 """

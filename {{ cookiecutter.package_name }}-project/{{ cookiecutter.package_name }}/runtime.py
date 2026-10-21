@@ -1,45 +1,64 @@
 # -*- coding: utf-8 -*-
 
 """
-Runtime detection — single source of truth for "where is this code running?"
-
-Many parts of this project behave differently depending on whether the code is
-executing inside an AWS Lambda function or on a developer's local machine:
-
-- **Config loading** (``one_01_config.py``): on Lambda, config comes from
-  Lambda environment variables set at CDK deploy time; locally, it is loaded
-  from ``.env`` / ``.env.shared`` files via ``python-dotenv``.
-- **Boto session** (``one_02_boto_ses.py``): on Lambda, the default execution
-  role credentials are used; locally, a named AWS CLI profile is used.
-
-By wrapping the detection in a singleton ``runtime`` object and importing it
-everywhere, we avoid scattering ``os.environ.get("AWS_LAMBDA_FUNCTION_NAME")``
-checks throughout the codebase.  Any future runtime-dependent logic should
-branch on ``runtime.is_aws_lambda`` rather than inventing its own check.
-
-Usage::
+Where this code runs: a developer machine, CI, or AWS Lambda. Ask the
+:data:`runtime` singleton instead of reading ``os.environ``::
 
     from .runtime import runtime
 
-    if runtime.is_aws_lambda:
-        ...  # Lambda-specific behavior
-    else:
-        ...  # Local / CI behavior
+    if runtime.current_runtime_name() == "aws_lambda":
+        ...
 """
 
-import which_runtime.api as which_runtime
+from __future__ import annotations
+
+import os
+import enum
 
 
-class Runtime(which_runtime.Runtime):
+class RuntimeNameEnum(enum.Enum):
     """
-    Thin subclass of ``which_runtime.Runtime``.
-
-    Kept as a subclass (rather than using the upstream class directly) so that
-    project-specific runtime checks can be added later without changing every
-    import site.
+    Every runtime this project's code can run in.
     """
 
-    pass
+    #: A developer's machine.
+    local = "local"
+    #: A CI/CD runner, such as GitHub Actions.
+    ci = "ci"
+    #: Inside an AWS Lambda function.
+    aws_lambda = "aws_lambda"
+
+
+class Runtime:
+    """
+    Detects the current runtime.
+
+    Use the module-level :data:`runtime` singleton instead of creating new instances.
+    """
+
+    def get_current_runtime_name(self) -> RuntimeNameEnum:
+        """
+        Work out the current runtime.
+
+        ``AWS_LAMBDA_FUNCTION_NAME`` is set by the Lambda service in every
+        function. The ``CI`` environment variable counts as the CI signal,
+        because GitHub Actions and most other CI services set it on every runner.
+        """
+        if "AWS_LAMBDA_FUNCTION_NAME" in os.environ:
+            return RuntimeNameEnum.aws_lambda
+        elif "CI" in os.environ:
+            return RuntimeNameEnum.ci
+        else:
+            return RuntimeNameEnum.local
+
+    def current_runtime_name(self) -> str:
+        """
+        The current runtime name, such as ``"local"``.
+        """
+        return self.get_current_runtime_name().value
 
 
 runtime = Runtime()
+"""
+The single :class:`Runtime` instance of this project.
+"""

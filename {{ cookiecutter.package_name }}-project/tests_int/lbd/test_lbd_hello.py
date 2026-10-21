@@ -1,53 +1,42 @@
 # -*- coding: utf-8 -*-
 
 """
-Integration test for the ``hello`` Lambda function.
-
-Invokes the **deployed** Lambda function via ``lambda_client.invoke()`` and
-validates the response payload.  Tests two cases:
-
-1. Normal input (``{"name": "bob"}``) — expects ``"hello bob"``.
-2. Missing input (``{}``) — expects the default ``"hello Mr X"``.
-
-This test exercises the full Lambda lifecycle: cold/warm start, handler
-routing through ``lambda_function.py``, Pydantic validation, and the
-``LogResult`` output.
+Integration test of the deployed hello function: with a name, and with the default.
 """
 
 import json
-import base64
 
 from {{ cookiecutter.package_name }}.api import one
+
+
+def invoke(payload: dict) -> dict:
+    """
+    Invoke the deployed hello function of ``ENV_NAME`` and return its output.
+    """
+    response = one.lambda_client.invoke(
+        FunctionName=one.config.get_lambda_function_name("hello"),
+        InvocationType="RequestResponse",
+        LogType="Tail",
+        Payload=json.dumps(payload),
+    )
+    # print(response["LogResult"])  # base64 encoded log, for debug only
+    return json.loads(response["Payload"].read().decode("utf-8"))
 
 
 def test(
     disable_logger,
 ):
-    # test case 1
-    payload = {"name": "bob"}
-    response = one.lambda_client.invoke(
-        FunctionName=one.config.lbd_func_hello.name,
-        InvocationType="RequestResponse",
-        LogType="Tail",
-        Payload=json.dumps(payload),
-    )
-    log = base64.b64decode(response["LogResult"].encode("utf-8")).decode("utf-8")
-    # print(log)  # for debug only
-    result: dict = json.loads(response["Payload"].read().decode("utf-8"))
-    assert result["message"] == "hello bob"
+    # --------------------------------------------------------------------------
+    # run
+    # --------------------------------------------------------------------------
+    result_1 = invoke({"name": "bob"})
+    result_2 = invoke({})
 
-    # test case 2
-    payload = {}
-    response = one.lambda_client.invoke(
-        FunctionName=one.config.lbd_func_hello.name,
-        InvocationType="RequestResponse",
-        LogType="Tail",
-        Payload=json.dumps(payload),
-    )
-    log = base64.b64decode(response["LogResult"].encode("utf-8")).decode("utf-8")
-    # print(log)  # for debug only
-    result: dict = json.loads(response["Payload"].read().decode("utf-8"))
-    assert result["message"] == "hello Mr X"
+    # --------------------------------------------------------------------------
+    # after
+    # --------------------------------------------------------------------------
+    assert result_1["message"] == "hello bob"
+    assert result_2["message"] == "hello Mr X"
 
 
 if __name__ == "__main__":

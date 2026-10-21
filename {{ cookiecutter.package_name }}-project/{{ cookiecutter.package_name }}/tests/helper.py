@@ -1,33 +1,14 @@
 # -*- coding: utf-8 -*-
 
 """
-Project-specific test runner wrappers.
-
-**Why these wrappers?**  The vendored ``pytest_cov_helper`` requires explicit
-``root_dir`` and ``htmlcov_dir`` arguments.  These wrappers pre-fill them from
-``path_enum`` so that every test file's ``if __name__ == "__main__"`` block
-stays concise — just pass ``__file__`` and the module name.
-
-**The ``if __name__ == "__main__"`` pattern — why?**
-
-Every test file in this project ends with::
-
-    if __name__ == "__main__":
-        from {{ cookiecutter.package_name }}.tests import run_cov_test
-        run_cov_test(__file__, "{{ cookiecutter.package_name }}.some_module")
-
-This lets you run a single test file directly (``python tests/test_foo.py``)
-and immediately see per-module coverage in your terminal and browser — without
-configuring pytest CLI flags or ``.ini`` files.  During development this is
-much faster than running the full test suite, and it encourages writing tests
-alongside the code they cover.
+``run_unit_test`` and ``run_cov_test`` of the vendored ``pytest_cov_helper``,
+with ``root_dir`` and ``htmlcov_dir`` filled in from ``path_enum``, for the
+``if __name__ == "__main__":`` block of every test file.
 """
 
 from ..paths import path_enum
-from ..vendor.pytest_cov_helper import (
-    run_unit_test as _run_unit_test,
-    run_cov_test as _run_cov_test,
-)
+from ..vendor.pytest_cov_helper import run_unit_test as _run_unit_test
+from ..vendor.pytest_cov_helper import run_cov_test as _run_cov_test
 
 
 def run_unit_test(

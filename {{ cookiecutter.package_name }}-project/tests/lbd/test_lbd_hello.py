@@ -1,14 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Unit test for the ``hello`` Lambda function.
-
-Tests the business logic directly by instantiating ``Input`` and calling
-``main()`` — no AWS services involved.  The ``disable_logger`` fixture
-suppresses log output for cleaner test output.
-
-This is the simplest example of the handler testing pattern: construct the
-Pydantic ``Input`` model, call ``main()``, and assert on the ``Output`` fields.
+Unit test of the hello function: calls ``Input.main`` directly.
 """
 
 from {{ cookiecutter.package_name }}.lbd.hello import Input
@@ -17,9 +10,14 @@ from {{ cookiecutter.package_name }}.lbd.hello import Input
 def test_hello(
     disable_logger,
 ):
-    # invoke api
+    # --------------------------------------------------------------------------
+    # run
+    # --------------------------------------------------------------------------
     output = Input(name="alice").main()
-    # validate response
+
+    # --------------------------------------------------------------------------
+    # after
+    # --------------------------------------------------------------------------
     assert output.message == "hello alice"
 
 

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import shutil
 from pathlib import Path
 
 dir_project_root = Path.cwd()
@@ -693,7 +694,7 @@ specific requirements.
 if any, to sign a "copyright disclaimer" for the program, if necessary.
 For more information on this, and how to apply and follow the GNU AGPL, see
 <https://www.gnu.org/licenses/>.
-"""
+""".strip("\n")
 
 proprietary_license = """
 Copyright (c) {% now 'utc', '%Y' %} {{ cookiecutter.author }} <{{ cookiecutter.author_email }}>
@@ -704,15 +705,48 @@ This software is proprietary and confidential. Unauthorized copying, modificatio
 
 This software is provided "as is" without warranty of any kind, either express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and noninfringement.
 
-For licensing inquiries or commercial use, please contact: [your contact email or website].
-"""
+For licensing inquiries or commercial use, please contact: {{ cookiecutter.author_email }}.
+""".strip()
 
 license_mapping = {
     "MIT": mit_license,
     "AGPL-3.0-or-later": agpl_3_0_or_later_license,
-    "Proprietary": proprietary_license,
+    "LicenseRef-Proprietary": proprietary_license,
 
 }
 path_license = dir_project_root.joinpath("LICENSE.txt")
 license_content = license_mapping[license]
 path_license.write_text(license_content, encoding="utf-8")
+
+# Local, per-person settings, git-ignored in the generated project: copy each
+# example once so the project is ready to fill in. Keep in sync with
+# HOOK_OUTPUTS in .mise/tasks/make_template.py.
+local_files = {
+    ".env": ".env.example",
+    "config/config-shared-secret.json5": "config/example/config-shared-secret.json5.example",
+    "config/config-dev-secret.json5": "config/example/config-dev-secret.json5.example",
+    "config/config-tst-secret.json5": "config/example/config-dev-secret.json5.example",
+    "config/config-prd-secret.json5": "config/example/config-dev-secret.json5.example",
+}
+for dst, src in local_files.items():
+    path_dst = dir_project_root.joinpath(dst)
+    if not path_dst.exists():
+        shutil.copyfile(dir_project_root.joinpath(src), path_dst)
+
+files = "\n".join(f"   - {dst}" for dst in local_files)
+print(f"""
+Project created at {dir_project_root}
+
+Next steps:
+
+1. Fill in real values in these files, copied from their examples
+   (git-ignored, they never enter the repo):
+{files}
+
+2. Move the folder where you want it (optionally 'git init' there), then:
+
+   cd {dir_project_root.name}
+   mise run cov                    # run the unit tests
+   mise run lambda-layer-deploy    # build and publish the Lambda layer
+   mise run cdk-up-dev-all         # deploy every stack to dev
+""")
