@@ -9,7 +9,7 @@
 name = "cookiecutter_aws_lbd"
 # The tpl version. This is its only source: `mise run sync` writes it into
 # cookiecutter.json (_template_version) and README.rst. Re-run sync after a bump.
-version = "0.1.4"
+version = "0.2.1"
 description = "Cookiecutter template for multi-environment AWS Lambda projects in Python"
 license = "MIT"
 license-files = ["LICENSE.txt", "AUTHORS.rst"]

@@ -58,7 +58,7 @@ class SeedValues:
 
     # --- author
     author = "Sanhe Hu"
-    author_email = "husanhe@email.com"
+    author_email = "husanhe@gmail.com"
 
     # --- versioning (read from the seed)
     version = _pyproject["project"]["version"]
