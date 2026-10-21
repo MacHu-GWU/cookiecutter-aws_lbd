@@ -11,7 +11,12 @@
     "version": "0.1.1",
     "dev_python_version": "3.12",
     "aws_region": "us-east-1",
+    "aws_account_prefix": "your-aws-account-prefix",
     "github_token_field": "your_github_token_field",
+    "devops_aws_account_id": "111122223333",
+    "dev_aws_account_id": "123456789012",
+    "tst_aws_account_id": "123456789012",
+    "prd_aws_account_id": "123456789012",
     "_template_version": "0.2.1",
     "__prompts__": {
         "package_name": "Your Python package name, in snake case (e.g. my_package)",
@@ -22,7 +27,12 @@
         "version": "Semantic Version, in {major}.{minor}.{micro} (e.g. 0.1.1)",
         "dev_python_version": "Python version for local development, in {major}.{minor} (e.g. 3.12)",
         "aws_region": "AWS region every environment (dev, tst, prd) deploys to (e.g. us-east-1)",
-        "github_token_field": "GitHub token field. Read https://github.com/MacHu-GWU/home_secret_toml-project to learn how to set up your tokens using home_secret.toml"
+        "aws_account_prefix": "Prefix of your AWS account names; bucket names derive from it, such as <prefix>-dev-<aws_region>-data and <prefix>-devops-<aws_region>-artifacts",
+        "github_token_field": "GitHub token field. Read https://github.com/MacHu-GWU/home_secret_toml-project to learn how to set up your tokens using home_secret.toml",
+        "devops_aws_account_id": "AWS account id of the devops environment, which owns the Lambda layer and the artifacts bucket",
+        "dev_aws_account_id": "AWS account id of the dev environment",
+        "tst_aws_account_id": "AWS account id of the tst environment",
+        "prd_aws_account_id": "AWS account id of the prd environment"
     },
     "_copy_without_render": [
         "docs/source/_static/{{ cookiecutter.package_name }}-favicon.ico",

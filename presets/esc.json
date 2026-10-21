@@ -1,0 +1,12 @@
+{
+    "github_username": "MacHu-GWU",
+    "license": "LicenseRef-Proprietary",
+    "author": "Sanhe Hu",
+    "author_email": "husanhe@gmail.com",
+    "aws_account_prefix": "esc-app",
+    "github_token_field": "github.accounts.sh.users.sh.secrets.dev.value",
+    "devops_aws_account_id": "982534387049",
+    "dev_aws_account_id": "361769586364",
+    "tst_aws_account_id": "539247469061",
+    "prd_aws_account_id": "971422713359"
+}

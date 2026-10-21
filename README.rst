@@ -56,19 +56,24 @@ You'll then be prompted to provide the following information (defaults in parent
 
 .. code-block:: bash
 
-    [1/9] Your Python package name, in snake case (e.g. my_package) (your_package_name): your_package_name
-    [2/9] Your GitHub username, the owner of the new repo (your_github_username): your_github_username
-    [3/9] Pick a license, as an SPDX expression for pyproject.toml, see https://choosealicense.com/ for details
+    [1/14] Your Python package name, in snake case (e.g. my_package) (your_package_name): your_package_name
+    [2/14] Your GitHub username, the owner of the new repo (your_github_username): your_github_username
+    [3/14] Pick a license, as an SPDX expression for pyproject.toml, see https://choosealicense.com/ for details
       1 - MIT
       2 - AGPL-3.0-or-later
       3 - LicenseRef-Proprietary
       Choose from [1/2/3] (1): 1
-    [4/9] Author name for pyproject.toml (Firstname Lastname): Firstname Lastname
-    [5/9] Author email for pyproject.toml (firstname.lastname@email.com): firstname.lastname@email.com
-    [6/9] Semantic Version, in {major}.{minor}.{micro} (e.g. 0.1.1) (0.1.1): 0.1.1
-    [7/9] Python version for local development, in {major}.{minor} (e.g. 3.12) (3.12): 3.12
-    [8/9] AWS region every environment (dev, tst, prd) deploys to (e.g. us-east-1) (us-east-1): us-east-1
-    [9/9] GitHub token field. Read https://github.com/MacHu-GWU/home_secret_toml-project to learn how to set up your tokens using home_secret.toml (your_github_token_field): your_github_token_field
+    [4/14] Author name for pyproject.toml (Firstname Lastname): Firstname Lastname
+    [5/14] Author email for pyproject.toml (firstname.lastname@email.com): firstname.lastname@email.com
+    [6/14] Semantic Version, in {major}.{minor}.{micro} (e.g. 0.1.1) (0.1.1): 0.1.1
+    [7/14] Python version for local development, in {major}.{minor} (e.g. 3.12) (3.12): 3.12
+    [8/14] AWS region every environment (dev, tst, prd) deploys to (e.g. us-east-1) (us-east-1): us-east-1
+    [9/14] Prefix of your AWS account names; bucket names derive from it, such as <prefix>-dev-<aws_region>-data and <prefix>-devops-<aws_region>-artifacts (your-aws-account-prefix): your-aws-account-prefix
+    [10/14] GitHub token field. Read https://github.com/MacHu-GWU/home_secret_toml-project to learn how to set up your tokens using home_secret.toml (your_github_token_field): your_github_token_field
+    [11/14] AWS account id of the devops environment, which owns the Lambda layer and the artifacts bucket (111122223333): 111122223333
+    [12/14] AWS account id of the dev environment (123456789012): 123456789012
+    [13/14] AWS account id of the tst environment (123456789012): 123456789012
+    [14/14] AWS account id of the prd environment (123456789012): 123456789012
 
 This will generate a repository structure similar to `cookiecutter_aws_lbd_demo-project <https://github.com/MacHu-GWU/cookiecutter_aws_lbd_demo-project>`_.
 

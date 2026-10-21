@@ -66,6 +66,9 @@ class SeedValues:
 
     # --- AWS (read from the seed)
     aws_region = _aws_regions.pop()
+    # Every bucket name is <prefix>-<account>-<region>-<data|artifacts>, where
+    # <account> is devops, dev, test or prod (config/config-*.json5).
+    aws_account_prefix = "bmt-app"
 
     # --- secret token fields
     github_token_field = "github.accounts.sh.users.sh.secrets.dev.value"
@@ -200,12 +203,51 @@ PARAMETERS = [
         include=_CONSOLE_URL_FILES,
         in_cookiecutter_json=False,
     ),
+    # The bucket names in config/config-*.json5 (and QUICK_LINKS.md, generated
+    # from them): the prefix becomes a variable ...
+    Parameter(
+        selector=[f"{SeedValues.aws_account_prefix}-", SeedValues.aws_account_prefix],
+        name="aws_account_prefix",
+        default="your-aws-account-prefix",
+        prompt=(
+            "Prefix of your AWS account names; bucket names derive from it, such as "
+            "<prefix>-dev-<aws_region>-data and <prefix>-devops-<aws_region>-artifacts"
+        ),
+    ),
+    # ... and so does the region inside them.
+    Parameter(
+        selector=[f"-{SeedValues.aws_region}-data", SeedValues.aws_region],
+        name="aws_region",
+        in_cookiecutter_json=False,
+    ),
+    Parameter(
+        selector=[f"-{SeedValues.aws_region}-artifacts", SeedValues.aws_region],
+        name="aws_region",
+        in_cookiecutter_json=False,
+    ),
     Parameter(
         selector=[SeedValues.github_token_field],
         name="github_token_field",
         default="your_github_token_field",
         prompt=f"GitHub token field. {_HOME_SECRET_HELP}",
     ),
+]
+
+# Variables that only hooks/post_gen_project.py uses: it writes them into the
+# git-ignored config/config-*-secret.json5 of a generated project. They have no
+# seed value (the seed's secret files are not git-visible), so they are added to
+# cookiecutter.json directly. Each entry: (name, default, prompt). The defaults
+# are the placeholder ids of the config/example/*-secret.json5.example files.
+HOOK_VARIABLES: list[tuple[str, str, str]] = [
+    (
+        "devops_aws_account_id",
+        "111122223333",
+        "AWS account id of the devops environment, which owns the Lambda layer and the artifacts bucket",
+    ),
+    *[
+        (f"{env}_aws_account_id", "123456789012", f"AWS account id of the {env} environment")
+        for env in ("dev", "tst", "prd")
+    ],
 ]
 
 # Git-visible seed files that must not enter the template.
@@ -255,6 +297,7 @@ UNIQUE_SEED_VALUES = {
     "package_name_slug": SeedValues.package_name_slug,
     "github_username": SeedValues.github_username,
     "pypi_username": SeedValues.pypi_username,
+    "aws_account_prefix": SeedValues.aws_account_prefix,
     "author": SeedValues.author,
     "author_email": SeedValues.author_email,
     "github_token_field": SeedValues.github_token_field,
@@ -285,6 +328,23 @@ def get_seed_context() -> dict[str, str]:
         for p in PARAMETERS
         if p.in_cookiecutter_json
     }
+
+
+def add_hook_variables(path_json) -> None:
+    """
+    Add ``HOOK_VARIABLES`` and their prompts to ``cookiecutter.json``, right
+    after the last variable that came from a parameter.
+    """
+    data = json.loads(path_json.read_text(encoding="utf-8"))
+    result = {}
+    for key, value in data.items():
+        if key.startswith("_") and HOOK_VARIABLES[0][0] not in result:
+            for name, default, _ in HOOK_VARIABLES:
+                result[name] = default
+        result[key] = value
+    for name, _, prompt in HOOK_VARIABLES:
+        result["__prompts__"][name] = prompt
+    path_json.write_text(json.dumps(result, indent=4, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def add_template_version(path_json) -> None:
@@ -321,6 +381,7 @@ def main() -> int:
         verbose=False,
     )
     maker.make_template()
+    add_hook_variables(maker.path_cookiecutter_json)
     add_template_version(maker.path_cookiecutter_json)
     print(f"Template written to {cctpl.dir_template}")
     return 0

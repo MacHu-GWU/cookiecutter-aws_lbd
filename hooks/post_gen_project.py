@@ -733,6 +733,19 @@ for dst, src in local_files.items():
     if not path_dst.exists():
         shutil.copyfile(dir_project_root.joinpath(src), path_dst)
 
+# Fill in the AWS account ids: replace the placeholder id of each example.
+# Keep in sync with HOOK_VARIABLES in .mise/tasks/make_template.py.
+aws_account_ids = {
+    "config/config-shared-secret.json5": ("111122223333", "{{ cookiecutter.devops_aws_account_id }}"),
+    "config/config-dev-secret.json5": ("123456789012", "{{ cookiecutter.dev_aws_account_id }}"),
+    "config/config-tst-secret.json5": ("123456789012", "{{ cookiecutter.tst_aws_account_id }}"),
+    "config/config-prd-secret.json5": ("123456789012", "{{ cookiecutter.prd_aws_account_id }}"),
+}
+for dst, (placeholder, account_id) in aws_account_ids.items():
+    path_dst = dir_project_root.joinpath(dst)
+    text = path_dst.read_text(encoding="utf-8")
+    path_dst.write_text(text.replace(f'"{placeholder}"', f'"{account_id}"'), encoding="utf-8")
+
 files = "\n".join(f"   - {dst}" for dst in local_files)
 print(f"""
 Project created at {dir_project_root}

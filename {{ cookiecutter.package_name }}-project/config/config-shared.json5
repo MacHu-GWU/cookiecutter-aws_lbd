@@ -6,7 +6,7 @@
   // Every AWS resource name derives from this, such as the stack name prefix.
   project_name: "{{ cookiecutter.package_name }}",
   // The DEVOPS account owns the Lambda layer; its id is in config-shared-secret.json5.
-  devops_s3_bucket_artifacts: "bmt-app-devops-us-east-1-artifacts",
+  devops_s3_bucket_artifacts: "{{ cookiecutter.aws_account_prefix }}-devops-{{ cookiecutter.aws_region }}-artifacts",
   // Lambda Python version, also the Python the layer is built for.
   lambda_python_version: "3.12",
   // true: build the layer in the AWS SAM image (needs Docker). Only needed when
