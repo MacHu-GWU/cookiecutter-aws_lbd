@@ -14,6 +14,36 @@ Backlog (TODO)
 
 **Miscellaneous**
 
+
+1.0.0 (2026-10-23)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Seed repo changes: `1.0.0 (2026-10-23) <https://github.com/MacHu-GWU/cookiecutter_aws_lbd_demo-project/blob/1.0.0/release-history-seed-repo.rst#100-2026-10-23>`__
+
+**Features and Improvements**
+
+- The template and its seed repo now share one version number, so a template version also names the seed state it was generated from. The version jumps from ``0.2.1`` to ``1.0.0`` for this reason only: generating a project works exactly as with ``0.2.1``, and no variable changed
+- Every release entry in this file now starts with a link to the seed repo's own changelog (``release-history-seed-repo.rst``) at the seed's tag of the same version, which lists what newly generated projects get
+
+**Minor Improvements**
+
+- A published version is never overwritten: ``mise run publish-template`` creates the tag and the GitHub release in one step, refuses a version that already has a tag, and links the release to its changelog entry
+- New ``mise run publish-presets`` regenerates the ``preset/*`` branches from the pushed ``main``; ``publish-template`` runs it last, and it can be rerun alone, for example after changing only ``presets/*.json``
+- New ``mise run check-release``: before anything is pushed, checks the version is the same in the seed and in this repo, the template is current, the seed is pushed and tagged, and the changelog entry starts with the seed link
+- New ``mise run check-version``, run by ``mise run sync``: the seed version is valid, documented in the seed's changelog, never recorded in the template's own ``release-history.rst``, and every link of the generated ``pywf-aws-lbd-base`` skill points at the seed's tag of that version
+- New ``mise run e2e``: ``sync`` followed by ``try-template``, one command from the seed to a tested generated project
+- The seed's tag of the same version records which seed commit a template version was built from; changelog entries no longer carry a ``Built from seed`` commit
+
+**Bugfixes**
+
+- The links of the generated ``pywf-aws-lbd-base`` skill now resolve: they point at the seed's ``1.0.0`` tag, while in ``0.2.1`` they pointed at a seed tag that did not exist
+- A generated project's ``release-history.rst`` no longer starts with the template's own ``0.2.1`` release notes
+
+**Miscellaneous**
+
+- ``mise run sync`` copies the seed version into this repo's ``pyproject.toml`` and ``uv.lock``; the version is never edited here
+- New ``cctpl-changelog-cn`` skill writes this file, replacing ``py-changelog``; the cctpl skills describe the shared version, the seed-only files, and the new release order
+
+
 0.2.1 (2026-10-21)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Built from seed @ ``93d7d4c``

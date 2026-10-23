@@ -84,6 +84,7 @@
             "Bash(* cdk deploy*)",
             "Bash(* cdk destroy*)",
             "Bash(*publish_template.py*)",
+            "Bash(*publish_presets.py*)",
             "Bash(uv publish*)",
             "Bash(*twine upload*)",
             "Bash(gh release create *)",

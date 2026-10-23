@@ -89,7 +89,7 @@ git 认可的每个文件, 在模板中只有三种命运:
 
 | 命运 | 适用于 | 例子 |
 | :--- | :--- | :--- |
-| **exclude** (不进入模板) | 进了 git 但不属于 template content 的东西: 由 hooks 生成的文件, 只对 seed 自己有意义的文件 | `LICENSE.txt`, `uv.lock` |
+| **exclude** (不进入模板) | 进了 git 但不属于 template content 的东西: 由 hooks 生成的文件, 只对 seed 自己有意义的文件, seed-only 文件 (见 `02-repo-layout.md` 的 seed repo) | `LICENSE.txt`, `uv.lock`, `release-history-seed-repo.rst`, `.claude/skills/pywf-oss-changelog-seed-repo/` |
 | **no_render** (原样拷贝) | 必须逐字节保持一致, 或体积大且不需要替换的文件; 本身就是 Jinja 模板的文件 | 导出的 requirements 文件, `*.jinja`, `*.html` |
 | **render** (默认) | 其他所有文件 | 源码, 配置, 文档 |
 
@@ -166,5 +166,6 @@ hooks 处理字符串替换做不到的事情:
 | `CHOICE_COVERAGE` | 需要逐个可选值生成一次的 choice 变量 | Choice Coverage | 生成测试项目 (`test-template`) |
 | `UNIQUE_SEED_VALUES` | 独特的 seed value, 名字 → 值 | Legal Residue | `check-seed-values` (残留扫描) |
 | `LEGAL_RESIDUES` | 合法残留: (seed value 名, 文件, 原因) | Legal Residue | `check-seed-values` |
+| `SEED_VERSION_PIN_FILES` | 把链接固定在 seed 自身版本 tag 上的 seed 文件 (例如 seed 中的 skill 链接到 `<seed repo>/blob/<version>/...`). 没有就是空列表 | 共用版本号 (01 的 One Shared Version) | `check-version` |
 
 新增一个 parameter 时, 逐行检查这张表, 判断每个声明是否需要跟着改.
