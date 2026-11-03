@@ -19,6 +19,8 @@ from {{ cookiecutter.package_name }}.one.api import One
 from {{ cookiecutter.package_name }}.one.one_03_devops import load_all_env_configs
 from {{ cookiecutter.package_name }}.one.one_03_devops import check_layer_binaries
 from {{ cookiecutter.package_name }}.one.one_03_devops import build_lambda_source
+from {{ cookiecutter.package_name }}.one.one_03_devops import deploy_config
+from {{ cookiecutter.package_name }}.one.one_03_devops import delete_config
 
 PACKAGE_NAME = path_enum.dir_package.name
 
@@ -116,6 +118,12 @@ def test_deploy_and_delete_config(config: Config, capsys):
         out = capsys.readouterr().out
         assert "Config of 'dev' deleted: " in out
         assert "Config of 'dev' not found, nothing deleted: " in out
+
+        # Any environment, with its config and client injected.
+        prd_config = Config.load_from_local_config_file(env_name="prd")
+        assert deploy_config(config=prd_config, ssm_client=one.ssm_client) == "created"
+        assert "Config of 'prd' created (version 1, " in capsys.readouterr().out
+        assert delete_config(config=prd_config, ssm_client=one.ssm_client) is True
 
 
 def _relpaths(dir_build: Path) -> list[PurePath]:

@@ -136,7 +136,7 @@ Common Tasks
       - integration tests against ``ENV_NAME`` (writes to AWS)
     * - ``gen-quick-links``
       - regenerate ``QUICK_LINKS.md`` from the config
-    * - ``cdk-gen-tasks``
+    * - ``gen-env-tasks``
       - regenerate the per-environment tasks in ``mise.toml`` after adding a stack or an environment
 
 

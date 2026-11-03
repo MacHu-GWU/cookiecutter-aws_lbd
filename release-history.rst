@@ -15,6 +15,11 @@ Backlog (TODO)
 **Miscellaneous**
 
 
+1.1.0 (2026-11-03)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Seed repo changes: `1.1.0 (2026-11-03) <https://github.com/MacHu-GWU/cookiecutter_aws_lbd_demo-project/blob/1.1.0/release-history-seed-repo.rst#110-2026-11-03>`__
+
+
 1.0.0 (2026-10-23)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Seed repo changes: `1.0.0 (2026-10-23) <https://github.com/MacHu-GWU/cookiecutter_aws_lbd_demo-project/blob/1.0.0/release-history-seed-repo.rst#100-2026-10-23>`__
